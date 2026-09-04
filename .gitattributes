@@ -1,0 +1,5 @@
+# Prevent OneDrive/Git from mangling binary Prisma engine files
+*.node binary
+*.dll binary
+*.so binary
+*.dylib binary
