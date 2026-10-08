@@ -4,17 +4,18 @@ An AI-powered web application that helps users generate highly accurate and prof
 
 ## Features
 
-- ?? **AI Legal Drafting**: Automatically generates contextual and formatted legal responses using the advanced llama-3.3-70b-versatile model.
-- ? **Serverless Architecture**: 100% static client-side application hosted on Firebase Hosting.
-- ?? **Secure Authentication**: Integrated Firebase Authentication for user accounts and secure sessions.
-- ??? **Cloud Database**: User notices and drafts are securely stored in Firebase Firestore with strict, owner-only security rules.
-- ?? **Modern UI/UX**: Built with Next.js, Tailwind CSS, and shadcn/ui for a highly responsive and accessible interface.
+- ⚖️ **AI Legal Drafting**: Automatically generates contextual and formatted legal responses using **Google Gemma 4 E4B IT Assistant** (`google/gemma-4-E4B-it-assistant`) via Hugging Face with built-in statutory fallback.
+- 🚀 **Deployment Ready**: Optimized for deployment on **Vercel** and **Firebase Hosting**.
+- 🔒 **Secure Authentication**: Integrated Firebase Authentication for user accounts and secure sessions.
+- ☁️ **Cloud Database**: User notices and drafts are securely stored in Firebase Firestore with strict, owner-only security rules.
+- 🎨 **Modern UI/UX**: Built with Next.js, Tailwind CSS, and shadcn/ui for a highly responsive and accessible interface.
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14 (App Router, Static Export), React, Tailwind CSS
+- **Frontend**: Next.js 14 (App Router), React, Tailwind CSS
 - **Backend/BaaS**: Firebase (Auth, Firestore, Hosting)
-- **AI Provider**: Groq API (Llama 3.3 70B)
+- **AI Provider**: Hugging Face Inference API — Google Gemma 4 E4B Assistant (`google/gemma-4-E4B-it-assistant`)
+- **Hosting Platforms**: Vercel / Firebase Hosting
 - **UI Components**: shadcn/ui (Radix UI)
 
 ## Getting Started

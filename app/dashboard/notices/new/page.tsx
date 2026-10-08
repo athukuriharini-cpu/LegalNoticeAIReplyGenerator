@@ -40,6 +40,11 @@ export default function NewNoticePage() {
         noticeType: form.noticeType,
         issuingBody: form.issuingBody,
         noticeText: form.noticeText,
+        businessName: form.businessName || '',
+        businessAddress: form.businessAddress || '',
+        gstin: form.gstin || '',
+        senderName: form.senderName || '',
+        senderDesignation: form.senderDesignation || '',
         uploadedAt: serverTimestamp(),
         status: 'PENDING',
         lawyerReviewed: false,
@@ -54,16 +59,17 @@ export default function NewNoticePage() {
       const noticeRef = doc(db, 'notices', noticeId);
       await updateDoc(noticeRef, { status: 'GENERATING' });
 
-      // Step 2: Trigger AI generation client-side using the saved notice ID
+      // Step 2: Trigger AI generation client-side using Google Gemma 4 E4B
       try {
         const { generateLegalResponse, extractLegalReferences } = await import('@/lib/ai');
         const aiResponse = await generateLegalResponse({
           noticeText: form.noticeText,
           noticeType: form.noticeType,
-          businessName: 'Demo Business',
-          businessAddress: 'Demo Address',
-          senderName: 'Authorized Signatory',
-          senderDesignation: 'Director',
+          businessName: form.businessName || 'Noticee Business Entity',
+          businessAddress: form.businessAddress || 'Registered Office Address',
+          gstin: form.gstin,
+          senderName: form.senderName || 'Authorized Signatory',
+          senderDesignation: form.senderDesignation || 'Managing Director',
         });
 
         const responseJson = await aiResponse.json();

@@ -22,6 +22,11 @@ interface Notice {
   noticeType: string;
   issuingBody: string;
   noticeText: string;
+  businessName?: string;
+  businessAddress?: string;
+  gstin?: string;
+  senderName?: string;
+  senderDesignation?: string;
   uploadedAt: string;
   status: string;
   generatedResponse?: string;
@@ -56,6 +61,11 @@ export default function NoticeDetailPage() {
           noticeType: data.noticeType || '',
           issuingBody: data.issuingBody || '',
           noticeText: data.noticeText || '',
+          businessName: data.businessName || '',
+          businessAddress: data.businessAddress || '',
+          gstin: data.gstin || '',
+          senderName: data.senderName || '',
+          senderDesignation: data.senderDesignation || '',
           uploadedAt: data.uploadedAt?.toDate?.()?.toISOString() || data.uploadedAt || new Date().toISOString(),
           status: data.status || 'PENDING',
           generatedResponse: data.generatedResponse,
@@ -99,10 +109,11 @@ export default function NoticeDetailPage() {
       const aiResponse = await generateLegalResponse({
         noticeText: notice.noticeText,
         noticeType: notice.noticeType,
-        businessName: 'Demo Business',
-        businessAddress: 'Demo Address',
-        senderName: 'Authorized Signatory',
-        senderDesignation: 'Director',
+        businessName: notice.businessName || 'Noticee Business Entity',
+        businessAddress: notice.businessAddress || 'Registered Office Address',
+        gstin: notice.gstin,
+        senderName: notice.senderName || 'Authorized Signatory',
+        senderDesignation: notice.senderDesignation || 'Managing Director',
       });
       
       const responseJson = await aiResponse.json();
@@ -255,7 +266,7 @@ export default function NoticeDetailPage() {
                 <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
                 <h3 className="text-xl font-bold">Generating Response...</h3>
                 <p className="text-muted-foreground text-sm max-w-sm mx-auto">
-                  NVIDIA AI is drafting your formal response using active Indian legal frameworks and section codes. This takes about 10-15 seconds.
+                  Google Gemma 4 E4B Assistant is drafting your formal legal reply using active Indian legal frameworks and section codes.
                 </p>
               </CardContent>
             </Card>
@@ -265,9 +276,9 @@ export default function NoticeDetailPage() {
             <Card className="text-center py-12 border-destructive">
               <CardContent className="space-y-4">
                 <AlertTriangle className="h-12 w-12 text-destructive mx-auto" />
-                <h3 className="text-xl font-bold text-destructive">Model Generation Failed</h3>
+                <h3 className="text-xl font-bold text-destructive">Model Generation Retry Available</h3>
                 <p className="text-muted-foreground text-sm max-w-md mx-auto">
-                  An error occurred while compiling your response. Please ensure your NVIDIA API key is valid in `.env` and try again.
+                  A temporary inference delay occurred. Click below to re-run generation with Google Gemma 4 E4B assistant.
                 </p>
                 <Button size="lg" onClick={handleGenerate}>Retry Generation</Button>
               </CardContent>
