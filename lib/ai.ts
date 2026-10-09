@@ -237,7 +237,7 @@ Risk Assessment: Moderate (Notice requires factual reconciliation and formal sta
 
 --------------------------------------------------------------------------------
 REPLY TO LEGAL NOTICE / SHOW CAUSE NOTICE
-[Model: Google Gemma 4 E4B Assistant via Hugging Face Library]
+[CONFIDENTIAL DRAFT - FOR LEGAL COUNSEL REVIEW]
 --------------------------------------------------------------------------------
 
 Date: ${currentDate}

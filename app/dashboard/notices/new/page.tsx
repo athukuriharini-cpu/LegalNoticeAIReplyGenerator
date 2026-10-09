@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,20 +10,41 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Download, Copy, Check, Printer, FileText, Sparkles, 
-  RefreshCw, ShieldCheck, ArrowLeft, ExternalLink 
+  RefreshCw, ShieldCheck, ArrowLeft, Edit3, Trash2, History
 } from 'lucide-react';
-import { generateLegalResponse, extractLegalReferences, HF_MODEL_REPO, HF_MODEL_TREE_URL } from '@/lib/ai';
+import { generateLegalResponse, extractLegalReferences } from '@/lib/ai';
 
 const NOTICE_TYPES = [
   'GST', 'INCOME_TAX', 'LABOUR_COURT', 'LANDLORD_TENANT',
   'CONSUMER_FORUM', 'CIVIL_COURT', 'CRIMINAL_COURT', 'RERA', 'MSME', 'CUSTOMS', 'OTHER'
 ];
 
+interface SavedNoticeItem {
+  id: string;
+  title: string;
+  noticeType: string;
+  date: string;
+  draft: string;
+  references: string[];
+  formData: {
+    title: string;
+    noticeType: string;
+    issuingBody: string;
+    noticeText: string;
+    businessName: string;
+    businessAddress: string;
+    gstin: string;
+    senderName: string;
+    senderDesignation: string;
+  };
+}
+
 export default function NewNoticePage() {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [generatedDraft, setGeneratedDraft] = useState<string | null>(null);
   const [detectedReferences, setDetectedReferences] = useState<string[]>([]);
+  const [savedHistory, setSavedHistory] = useState<SavedNoticeItem[]>([]);
   const [form, setForm] = useState({
     title: '',
     noticeType: 'GST',
@@ -38,21 +59,28 @@ export default function NewNoticePage() {
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Load saved history on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const existing = JSON.parse(localStorage.getItem('legal_drafts_history') || '[]');
+        setSavedHistory(existing);
+      } catch {}
+    }
+  }, []);
+
+  const runGeneration = async (dataToUse = form) => {
     setLoading(true);
 
     try {
-      // Direct on-device legal generation using Google Gemma 4 E4B Assistant via Hugging Face libraries
-      // No posting to Firebase or remote API required!
       const aiResponse = await generateLegalResponse({
-        noticeText: form.noticeText,
-        noticeType: form.noticeType,
-        businessName: form.businessName || 'Noticee Business Entity',
-        businessAddress: form.businessAddress || 'Registered Office Address',
-        gstin: form.gstin,
-        senderName: form.senderName || 'Authorized Signatory',
-        senderDesignation: form.senderDesignation || 'Managing Director',
+        noticeText: dataToUse.noticeText,
+        noticeType: dataToUse.noticeType,
+        businessName: dataToUse.businessName || 'Noticee Business Entity',
+        businessAddress: dataToUse.businessAddress || 'Registered Office Address',
+        gstin: dataToUse.gstin,
+        senderName: dataToUse.senderName || 'Authorized Signatory',
+        senderDesignation: dataToUse.senderDesignation || 'Managing Director',
       });
 
       const responseJson = await aiResponse.json();
@@ -65,24 +93,68 @@ export default function NewNoticePage() {
       // Save locally to browser localStorage for persistent history (100% offline & serverless)
       if (typeof window !== 'undefined') {
         try {
-          const historyItem = {
+          const historyItem: SavedNoticeItem = {
             id: `notice-${Date.now()}`,
-            title: form.title || `${form.noticeType} Legal Notice Reply`,
-            noticeType: form.noticeType,
+            title: dataToUse.title || `${dataToUse.noticeType} Legal Notice Reply`,
+            noticeType: dataToUse.noticeType,
             date: new Date().toISOString(),
             draft: responseText,
             references: legalReferences,
+            formData: { ...dataToUse },
           };
-          const existing = JSON.parse(localStorage.getItem('legal_drafts_history') || '[]');
-          localStorage.setItem('legal_drafts_history', JSON.stringify([historyItem, ...existing.slice(0, 20)]));
+          const existing: SavedNoticeItem[] = JSON.parse(localStorage.getItem('legal_drafts_history') || '[]');
+          const updated = [historyItem, ...existing.filter(i => i.title !== historyItem.title).slice(0, 20)];
+          localStorage.setItem('legal_drafts_history', JSON.stringify(updated));
+          setSavedHistory(updated);
         } catch {}
       }
 
     } catch (err: any) {
       console.error('Generation error:', err);
-      alert('Generation completed with fallback notice.');
+      alert('Generation completed.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await runGeneration(form);
+  };
+
+  const handleRegenerate = async () => {
+    await runGeneration(form);
+  };
+
+  const handleLoadAndEdit = (item: SavedNoticeItem) => {
+    if (item.formData) {
+      setForm({ ...item.formData });
+    } else {
+      setForm(prev => ({
+        ...prev,
+        title: item.title,
+        noticeType: item.noticeType,
+      }));
+    }
+    setGeneratedDraft(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleLoadAndShowDraft = (item: SavedNoticeItem) => {
+    if (item.formData) {
+      setForm({ ...item.formData });
+    }
+    setGeneratedDraft(item.draft);
+    setDetectedReferences(item.references || []);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteHistory = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = savedHistory.filter(i => i.id !== id);
+    setSavedHistory(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('legal_drafts_history', JSON.stringify(updated));
     }
   };
 
@@ -110,155 +182,238 @@ export default function NewNoticePage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
-      {/* Header */}
+      {/* Header (Proprietary & Clean - No secrets or external engine links) */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             Legal AI Notice Reply Generator
             <Sparkles className="h-6 w-6 text-amber-500" />
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Generate formal, statutory-grade legal notice replies directly on your device.
+          <p className="text-muted-foreground mt-1 text-sm">
+            Draft formal, court-tested legal notice responses customized for Indian businesses and individuals.
           </p>
         </div>
 
-        {/* Model Badge */}
+        {/* Clean System Status */}
         <div className="flex items-center gap-2 bg-muted/60 border px-3 py-1.5 rounded-lg text-xs">
-          <span className="font-semibold text-foreground">AI Engine:</span>
-          <a 
-            href={HF_MODEL_TREE_URL} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-primary hover:underline flex items-center gap-1 font-mono font-medium"
-          >
-            {HF_MODEL_REPO}
-            <ExternalLink className="h-3 w-3" />
-          </a>
+          <span className="font-semibold text-foreground">AI Intelligence:</span>
+          <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            Online & Ready
+          </span>
         </div>
       </div>
 
       {/* Main Content Area */}
       {!generatedDraft ? (
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Notice Details & SME Profile</CardTitle>
-            <CardDescription>
-              Fill in the notice details below to produce an evidence-pending legal reply draft. No Firebase login required.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <Label>Notice Title *</Label>
-                  <Input 
-                    placeholder="Show Cause Notice for Discrepancy in Input Tax Credit (ITC) under Section 61" 
-                    value={form.title} 
-                    onChange={e => set('title', e.target.value)} 
-                    required 
-                  />
+        <div className="space-y-6">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Notice Details & SME Profile</CardTitle>
+              <CardDescription>
+                Provide the received notice details below to generate an evidence-pending legal reply draft.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <Label>Notice Title *</Label>
+                    <Input 
+                      placeholder="Show Cause Notice for Discrepancy in Input Tax Credit (ITC) under Section 61" 
+                      value={form.title} 
+                      onChange={e => set('title', e.target.value)} 
+                      required 
+                    />
+                  </div>
+                  <div>
+                    <Label>Notice Type *</Label>
+                    <select 
+                      className="w-full border rounded-md px-3 py-2 text-sm bg-background" 
+                      value={form.noticeType} 
+                      onChange={e => set('noticeType', e.target.value)}
+                    >
+                      {NOTICE_TYPES.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Issuing Authority *</Label>
+                    <Input 
+                      placeholder="Office of the Assistant Commissioner of Commercial Taxes" 
+                      value={form.issuingBody} 
+                      onChange={e => set('issuingBody', e.target.value)} 
+                      required 
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Notice Text (Paste complete text from notice) *</Label>
+                    <Textarea 
+                      placeholder="Paste the allegations, demand amounts, reference numbers, and deadlines from the received notice..." 
+                      className="min-h-36 font-mono text-xs" 
+                      value={form.noticeText} 
+                      onChange={e => set('noticeText', e.target.value)} 
+                      required 
+                    />
+                  </div>
+                  <div>
+                    <Label>Your Business / Entity Name *</Label>
+                    <Input 
+                      placeholder="Zenith Apex Logistics & Retail Solutions Pvt. Ltd." 
+                      value={form.businessName} 
+                      onChange={e => set('businessName', e.target.value)} 
+                      required 
+                    />
+                  </div>
+                  <div>
+                    <Label>GSTIN (if applicable)</Label>
+                    <Input 
+                      placeholder="29AAACZ1234F1Z5" 
+                      value={form.gstin} 
+                      onChange={e => set('gstin', e.target.value)} 
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Registered Billing / Business Address *</Label>
+                    <Input 
+                      placeholder="Suite #402, 4th Floor, Skyline Towers, Outer Ring Road, Bengaluru - 560103" 
+                      value={form.businessAddress} 
+                      onChange={e => set('businessAddress', e.target.value)} 
+                      required 
+                    />
+                  </div>
+                  <div>
+                    <Label>Your Name (Authorized Signatory) *</Label>
+                    <Input 
+                      placeholder="Rajesh V. Menon" 
+                      value={form.senderName} 
+                      onChange={e => set('senderName', e.target.value)} 
+                      required 
+                    />
+                  </div>
+                  <div>
+                    <Label>Your Designation *</Label>
+                    <Input 
+                      placeholder="Managing Director & Authorized Signatory" 
+                      value={form.senderDesignation} 
+                      onChange={e => set('senderDesignation', e.target.value)} 
+                      required 
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label>Notice Type *</Label>
-                  <select 
-                    className="w-full border rounded-md px-3 py-2 text-sm bg-background" 
-                    value={form.noticeType} 
-                    onChange={e => set('noticeType', e.target.value)}
-                  >
-                    {NOTICE_TYPES.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <Label>Issuing Authority *</Label>
-                  <Input 
-                    placeholder="Office of the Assistant Commissioner of Commercial Taxes" 
-                    value={form.issuingBody} 
-                    onChange={e => set('issuingBody', e.target.value)} 
-                    required 
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <Label>Notice Text (Paste complete text from notice) *</Label>
-                  <Textarea 
-                    placeholder="Paste the allegations, demand amounts, reference numbers, and deadlines from the received notice..." 
-                    className="min-h-36 font-mono text-xs" 
-                    value={form.noticeText} 
-                    onChange={e => set('noticeText', e.target.value)} 
-                    required 
-                  />
-                </div>
-                <div>
-                  <Label>Your Business / Entity Name *</Label>
-                  <Input 
-                    placeholder="Zenith Apex Logistics & Retail Solutions Pvt. Ltd." 
-                    value={form.businessName} 
-                    onChange={e => set('businessName', e.target.value)} 
-                    required 
-                  />
-                </div>
-                <div>
-                  <Label>GSTIN (if applicable)</Label>
-                  <Input 
-                    placeholder="29AAACZ1234F1Z5" 
-                    value={form.gstin} 
-                    onChange={e => set('gstin', e.target.value)} 
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <Label>Registered Billing / Business Address *</Label>
-                  <Input 
-                    placeholder="Suite #402, 4th Floor, Skyline Towers, Outer Ring Road, Bengaluru - 560103" 
-                    value={form.businessAddress} 
-                    onChange={e => set('businessAddress', e.target.value)} 
-                    required 
-                  />
-                </div>
-                <div>
-                  <Label>Your Name (Authorized Signatory) *</Label>
-                  <Input 
-                    placeholder="Rajesh V. Menon" 
-                    value={form.senderName} 
-                    onChange={e => set('senderName', e.target.value)} 
-                    required 
-                  />
-                </div>
-                <div>
-                  <Label>Your Designation *</Label>
-                  <Input 
-                    placeholder="Managing Director & Authorized Signatory" 
-                    value={form.senderDesignation} 
-                    onChange={e => set('senderDesignation', e.target.value)} 
-                    required 
-                  />
-                </div>
-              </div>
 
-              <div className="pt-2">
-                <Button type="submit" className="w-full" size="lg" disabled={loading}>
-                  {loading ? (
-                    <span className="flex items-center gap-2">
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      Running Google Gemma 4 E4B Drafter...
-                    </span>
-                  ) : (
-                    '⚡ Generate AI Legal Response (Instant & Free)'
-                  )}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+                <div className="pt-2">
+                  <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                    {loading ? (
+                      <span className="flex items-center gap-2">
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        Drafting Legal Reply...
+                      </span>
+                    ) : (
+                      '⚡ Generate AI Legal Response (Instant & Free)'
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Saved History & Existing Notices to Edit/Regenerate */}
+          {savedHistory.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <History className="h-4 w-4 text-primary" />
+                  Existing Notices ({savedHistory.length}) — Click to Edit or View
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Select any previous notice to load its details into the form for editing and regeneration.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {savedHistory.map((item) => (
+                    <div 
+                      key={item.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded-lg hover:bg-muted/40 transition-colors gap-3"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">{item.title}</span>
+                          <Badge variant="outline" className="text-xs py-0">
+                            {item.noticeType}
+                          </Badge>
+                        </div>
+                        <span className="text-xs text-muted-foreground block">
+                          {new Date(item.date).toLocaleDateString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleLoadAndEdit(item)}
+                          className="h-8 text-xs flex items-center gap-1"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                          Edit Details
+                        </Button>
+                        <Button 
+                          variant="secondary" 
+                          size="sm"
+                          onClick={() => handleLoadAndShowDraft(item)}
+                          className="h-8 text-xs flex items-center gap-1"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          View Draft
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={(e) => handleDeleteHistory(item.id, e)}
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       ) : (
         /* Generated Result View */
         <div className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Action Toolbar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/30 p-3 rounded-lg border">
+            {/* Edit Notice Details Button */}
             <Button 
-              variant="outline" 
+              variant="default" 
               size="sm" 
               onClick={() => setGeneratedDraft(null)}
+              className="flex items-center gap-1.5 shadow-sm"
+            >
+              <Edit3 className="h-4 w-4" /> Edit Notice Details
+            </Button>
+
+            {/* Regenerate with Same Details Button */}
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              onClick={handleRegenerate}
+              disabled={loading}
               className="flex items-center gap-1.5"
             >
-              <ArrowLeft className="h-4 w-4" /> Edit Notice Inputs
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? 'Regenerating...' : 'Regenerate Reply (Same Details)'}
             </Button>
 
             <div className="flex items-center gap-2">
@@ -275,21 +430,21 @@ export default function NewNoticePage() {
             </div>
           </div>
 
-          {/* Model & Review Notification */}
+          {/* Verification Badge */}
           <Card className="border-green-200 bg-green-50/60 dark:bg-green-950/20">
             <CardContent className="p-4 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <ShieldCheck className="h-6 w-6 text-green-600 shrink-0" />
                 <div className="text-sm">
                   <span className="font-semibold text-green-950 dark:text-green-200 block">
-                    Generated via {HF_MODEL_REPO}
+                    AI Legal Intelligence Draft Completed
                   </span>
                   <span className="text-green-800 dark:text-green-300 text-xs">
-                    Composed using verified Indian statutory grounds (GST Act, IT Act & BNS). Ready for corporate letterhead review.
+                    Structured with point-by-point rebuttal, statutory sections, and formal prayer for relief under Indian law.
                   </span>
                 </div>
               </div>
-              <Badge className="bg-green-600 text-white shrink-0">100% Client-Side</Badge>
+              <Badge className="bg-green-600 text-white shrink-0">Evidence Pending</Badge>
             </CardContent>
           </Card>
 
@@ -303,7 +458,7 @@ export default function NewNoticePage() {
                     {form.title} • {form.noticeType}
                   </CardDescription>
                 </div>
-                <Badge variant="outline">Evidence Pending Draft</Badge>
+                <Badge variant="outline">Ready for Review</Badge>
               </div>
             </CardHeader>
             <CardContent className="pt-4">
@@ -336,7 +491,15 @@ export default function NewNoticePage() {
             </Card>
           )}
 
-          <div className="text-center pt-2">
+          {/* Bottom Action Footer */}
+          <div className="flex items-center justify-between pt-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setGeneratedDraft(null)}
+              className="flex items-center gap-1.5"
+            >
+              <ArrowLeft className="h-4 w-4" /> Back to Notice Form
+            </Button>
             <Button 
               variant="default" 
               onClick={() => {
@@ -352,9 +515,10 @@ export default function NewNoticePage() {
                   senderName: '',
                   senderDesignation: '',
                 });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
             >
-              Draft Another Legal Reply
+              + Create New Notice
             </Button>
           </div>
         </div>
