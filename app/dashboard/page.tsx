@@ -30,7 +30,29 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user) return;
+      if (!user) {
+        if (typeof window !== 'undefined') {
+          try {
+            const localDrafts = JSON.parse(localStorage.getItem('legal_drafts_history') || '[]');
+            const formatted = localDrafts.map((d: any) => ({
+              id: d.id,
+              title: d.title,
+              noticeType: d.noticeType,
+              status: 'COMPLETED',
+              uploadedAt: d.date,
+            }));
+            setNotices(formatted);
+            setStats({
+              total: formatted.length,
+              completed: formatted.length,
+              pending: 0,
+              credits: 10,
+            });
+          } catch {}
+        }
+        setLoading(false);
+        return;
+      }
       try {
         const { collection, query, where, getDocs } = await import('firebase/firestore');
         const { db } = await import('@/lib/firebase');

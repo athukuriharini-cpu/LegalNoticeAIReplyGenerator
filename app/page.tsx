@@ -35,16 +35,16 @@ export default function LandingPage() {
             AI-generated legal reply drafts for GST, Labour Court, Consumer Forum, and more. 
             Save Rs.5,000-Rs.50,000 per notice. Trusted by 10,000+ Indian businesses.
           </p>
-          <div className="flex gap-4 justify-center">
-            <Link href="/register">
-              <Button size="lg" className="text-lg px-8">
-                Get Started (Free)
+          <div className="flex flex-wrap gap-4 justify-center">
+            <Link href="/dashboard/notices/new">
+              <Button size="lg" className="text-lg px-8 shadow-md">
+                ⚡ Try Reply Generator (Instant)
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            <Link href="/login">
+            <Link href="/dashboard">
               <Button size="lg" variant="outline" className="text-lg px-8">
-                Sign In
+                View Dashboard
               </Button>
             </Link>
           </div>
